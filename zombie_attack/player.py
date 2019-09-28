@@ -12,7 +12,7 @@ _log = logging.getLogger(__name__)
 
 
 class Player(pygame.sprite.Sprite, life.Life):
-    ROTATION_IMAGE = -90  # soldier is facing top but 0 degrees is facing right
+    ROTATION_IMAGE = 0  # soldier is facing top but 0 degrees is facing right
     WEAPON_OUT_DISTANCE_FROM_CENTER = 64
     HIT_POINTS_INITIAL = 100
     HIT_POINTS_REGENERATE_PERIOD = 500
