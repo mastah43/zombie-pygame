@@ -24,7 +24,7 @@ class Player(pygame.sprite.Sprite, life.Life):
         rect = pygame.sprite.Rect((x, y), (size, size))
         return rect
 
-    def __init__(self, position, add_bullet):
+    def __init__(self, position):
         pygame.sprite.Sprite.__init__(self)
         life.Life.__init__(self, self.HIT_POINTS_INITIAL,
                            hit_point_regenerate_period=self.HIT_POINTS_REGENERATE_PERIOD)
@@ -33,7 +33,7 @@ class Player(pygame.sprite.Sprite, life.Life):
         self.image = pygame.Surface(self.rect.size)
         _log.debug("created player on position {position}")
         self._rotation_degrees = 0
-        self._weapon = weapon.Weapon(add_bullet)
+        self._weapon = weapon.Weapon()
         self._turn_degrees_per_sec = 360
 
     def update(self, *args):

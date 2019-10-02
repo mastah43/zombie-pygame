@@ -6,6 +6,7 @@ from . import animation
 from . import zombie_group
 from . import blood
 from . import life
+from . import bullet
 from .sfx import sfx
 
 
@@ -30,13 +31,14 @@ class ZombieAttackGame:
 
         screen_rect: pygame.sprite.Rect = self.screen.get_rect()
         player_pos_initial = (screen_rect.centerx, screen_rect.centery)
-        self.player = player.Player(position=player_pos_initial, add_bullet=self.add_bullet)
+        self.player = player.Player(position=player_pos_initial)
         self.players = pygame.sprite.RenderPlain(self.player)
         self.bullets = pygame.sprite.RenderPlain()
 
         self.zombies = zombie_group.ZombieGroup(self._create_spawn_rects(screen_rect))
         self.effects = pygame.sprite.RenderPlain()
 
+        bullet.Bullet.containers = self.bullets
         blood.Blood.containers = self.effects
         life.ScoreIncrease.containers = self.effects
 
@@ -54,9 +56,6 @@ class ZombieAttackGame:
     def _play_music(self):
         pygame.mixer.music.load("zombie_attack/music/random silly chip song.ogg")
         pygame.mixer.music.play(-1)
-
-    def add_bullet(self, bullet):
-        self.bullets.add(bullet)
 
     def _handle_input(self):
         for event in pygame.event.get():

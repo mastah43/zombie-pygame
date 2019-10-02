@@ -8,16 +8,21 @@ from . import animation
 from . import life
 from . import identifiable
 from . import blood
+from . import bullet
+
+ATTACK_DISTANCE = 0
 
 _random = random.Random()
 _log = logging.getLogger(__name__)
 
 
 class Zombie(pygame.sprite.Sprite, life.Life, identifiable.Identifiable):
-    ROTATION_IMAGE = 0  # zombie is facing right in images
+    ROTATION_IMAGE = -90  # zombie is facing right in images
     HIT_POINTS = 10
     TIME_TO_LIVE = 10000000  # TODO 10000
     SCORE = 50
+    LINE_LENGTH_TARGET_DIRECTION = 50
+    LINE_LENGTH_FACING_DIRECTION = 60
 
     @staticmethod
     def _create_rect(position: typing.Tuple[int, int], size: int) -> pygame.sprite.Rect:
@@ -60,7 +65,7 @@ class Zombie(pygame.sprite.Sprite, life.Life, identifiable.Identifiable):
         _log.debug(f"scaling {self} to {self.rect.size}" +
                    f" onto image sized {image_org.get_rect().size}")
         scale = self.rect.width / image_org.get_rect().width
-        rotation_image = (self._rotation_degrees - Zombie.ROTATION_IMAGE) % 360
+        rotation_image = (self._rotation_degrees - self.ROTATION_IMAGE) % 360
         _log.debug(
             f"{self} rotation {self._rotation_degrees} and image {rotation_image}" +
             f" using const {self.ROTATION_IMAGE}")
@@ -69,6 +74,8 @@ class Zombie(pygame.sprite.Sprite, life.Life, identifiable.Identifiable):
 
         self._draw_rotation_degrees()
         self._draw_boundary()
+        self._draw_line_target_direction()
+        self._draw_line_facing_direction()
 
         # TODO why does render_to not exist?
         #font.render_to(surf=self.image, dest=self.image, text=text,
@@ -87,72 +94,88 @@ class Zombie(pygame.sprite.Sprite, life.Life, identifiable.Identifiable):
             self.image.get_rect(),
             1)
 
+    def _draw_line_target_direction(self):
+        dx, dy = self._get_distance_xy_target()
+        color = pygame.Color('white')
+        length = self.LINE_LENGTH_TARGET_DIRECTION
+        self._draw_line_direction(color, dx, dy, length)
+
+    def _draw_line_facing_direction(self):
+        dx, dy = self._get_distance_xy_target()
+        color = pygame.Color('white')
+        length = self.LINE_LENGTH_FACING_DIRECTION
+        self._draw_line_direction(color, dx, dy, length)
+
+    def _draw_line_direction(self, color, dx, dy, length):
+        rect = self.image.get_rect()
+        pygame.draw.line(
+            self.image,
+            color,
+            rect.center,
+            (
+                rect.centerx + (dx * length),
+                rect.centery + (dy * length)
+            ))
+
     def update(self, *args):
         life.Life.update(self)
         self._move_to_target()
+        self._draw()
 
     def _move_to_target(self):
-        draw_funcs = []
+        self._turn_towards_target()
+        self._move_forward_to_attack()
+        self._draw()
 
+    def _move_forward_to_attack(self):
+        distance = self._get_distance_to_target()
+        if distance > ATTACK_DISTANCE:
+            self._move_forward()
+        else:
+            bullet.Slash(target_position=self.target_position)
+
+    def _get_distance_to_target(self):
+        dx, dy = self._get_distance_xy_target()
+        distance = math.sqrt((dx * dx) + (dy * dy))
+        return distance
+
+    def _get_distance_xy_target(self):
         tx = self.target_position[0]
         ty = self.target_position[1]
         dx = tx - self.rect.centerx
         dy = ty - self.rect.centery
+        return dx, dy
 
-        def draw_line_target_direction():
-            rect = self.image.get_rect()
-            pygame.draw.line(
-                self.image,
-                pygame.Color('white'),
-                rect.center,
-                (
-                    rect.centerx + (dx * 50),
-                    rect.centery + (dy * 50)
-                ))
+    def _move_forward(self):
+        mx, my = self._get_direction_facing()
+        _log.debug(f"{self} heading in direction {mx}, {my}")
+        m_length = math.sqrt((mx * mx) + (my * my))
+        if m_length > 0:
+            mx_normalized = mx / m_length
+            my_normalized = my / m_length
+            distance_delta = animation.value_sec_by_delta_time(self._move_distance_per_sec)
+            self._move((mx_normalized * distance_delta, my_normalized * distance_delta))
 
-        draw_funcs.append(draw_line_target_direction)
+    def _get_direction_facing(self):
+        rotation_radians = (self._rotation_degrees / 180.) * math.pi
+        mx = math.cos(rotation_radians)
+        my = math.sin(rotation_radians)
+        return mx, my
 
-        rotation_facing_target = int(math.atan2(dy, dx)/math.pi*180)
+    def _turn_towards_target(self):
+        dx, dy = self._get_distance_xy_target()
+        self._turn_towards_direction(dx, dy)
+
+    def _turn_towards_direction(self, dx, dy):
+        rotation_facing_target = int(math.atan2(dy, dx) / math.pi * 180)
         rotation_delta = rotation_facing_target - self._rotation_degrees
         if rotation_delta != 0:
             rotation_direction = 1 if 0 < rotation_delta <= 180 else -1
-            rotation_delta_step = animation.value_sec_by_delta_time(self._turn_degrees_per_sec)*rotation_direction
+            rotation_delta_step = animation.value_sec_by_delta_time(self._turn_degrees_per_sec) * rotation_direction
             _log.debug(f"{self} with rotation {self._rotation_degrees}" +
                        f" turning by {rotation_delta_step} in direction {rotation_facing_target}")
             # TODO make turn angle stop at facing target
             self._rotation_degrees = (self._rotation_degrees + rotation_delta_step) % 360
-
-        distance = math.sqrt((dx * dx) + (dy * dy))
-
-        if distance > 0:
-            rotation_radians = (self._rotation_degrees/180.)*math.pi
-            mx = math.cos(rotation_radians)
-            my = math.sin(rotation_radians)
-            _log.debug(f"{self} heading in direction {mx}, {my}")
-
-            def draw_line_move_direction():
-                pygame.draw.line(
-                    self.image,
-                    pygame.Color('green'),
-                    self.image.get_rect().center,
-                    (
-                        self.image.get_rect().centerx + (mx * 60),
-                        self.image.get_rect().centery + (my * 60)
-                    ))
-
-            draw_funcs.append(draw_line_move_direction)
-
-            m_length = math.sqrt((mx * mx) + (my * my))
-            if m_length > 0:
-                mx_normalized = mx / m_length
-                my_normalized = my / m_length
-                distance_delta = animation.value_sec_by_delta_time(self._move_distance_per_sec)
-                self._move((mx_normalized * distance_delta, my_normalized * distance_delta))
-
-        self._draw()
-
-        for draw_func in draw_funcs:
-            draw_func()
 
     def _get_turn_degrees_by_delta_time(self):
         return animation.value_sec_by_delta_time(self._turn_degrees_per_sec)
